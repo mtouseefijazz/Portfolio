@@ -19,7 +19,7 @@ interface NavbarProps {
 export function Navbar({ onSignInClick, onAdminClick }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -60,17 +60,19 @@ export function Navbar({ onSignInClick, onAdminClick }: NavbarProps) {
           <div className="w-px h-6 bg-white/10 mx-2" />
           {user ? (
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-emerald-300 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 bg-white/[0.04] rounded-full border border-white/10">
                 <User className="w-3.5 h-3.5" />
-                Owner
+                {isAdmin ? 'Owner' : 'Member'}
               </span>
-              <button
-                onClick={onAdminClick}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-emerald-300 hover:text-emerald-200 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all"
-              >
-                <Shield className="w-4 h-4" />
-                Admin
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={onAdminClick}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-emerald-300 hover:text-emerald-200 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all"
+                >
+                  <Shield className="w-4 h-4" />
+                  Admin
+                </button>
+              )}
               <button
                 onClick={signOut}
                 className="flex items-center gap-1.5 px-3.5 py-2 text-sm text-slate-400 hover:text-rose-300 rounded-lg hover:bg-white/[0.04] transition-all"
@@ -117,15 +119,17 @@ export function Navbar({ onSignInClick, onAdminClick }: NavbarProps) {
             <div className="h-px bg-white/10 my-2" />
             {user ? (
               <>
-                <button
-                  onClick={() => {
-                    onAdminClick();
-                    setOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-emerald-300 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
-                >
-                  <Shield className="w-4 h-4" /> Admin panel
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      onAdminClick();
+                      setOpen(false);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-emerald-300 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+                  >
+                    <Shield className="w-4 h-4" /> Admin panel
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     signOut();

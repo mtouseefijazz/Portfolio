@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
+  isAdmin: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,14 +27,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
+      if (!newSession) setIsAdmin(false);
     });
-
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Check admin status whenever the session (user) changes
+  useEffect(() => {
+    if (!session?.user) {
+      setIsAdmin(false);
+      return;
+    }
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('is_current_user_admin');
+        setIsAdmin(!!data);
+      } catch {
+        setIsAdmin(false);
+      }
+    })();
+  }, [session?.user?.id]);
 
   const value: AuthContextValue = {
     session,
     user: session?.user ?? null,
+    isAdmin,
     loading,
     signIn: async (email, password) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });

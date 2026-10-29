@@ -45,7 +45,7 @@ type Tab =
   | 'account';
 
 export function AdminPanel({ open, onClose }: AdminPanelProps) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
   const [projects, setProjects] = useState<Project[]>([]);
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -116,7 +116,7 @@ export function AdminPanel({ open, onClose }: AdminPanelProps) {
     setLoading(false);
   };
 
-  if (!open || !user) return null;
+  if (!open || !user || !isAdmin) return null;
 
   return (
     <div className="fixed inset-0 z-[70] animate-fade-in">

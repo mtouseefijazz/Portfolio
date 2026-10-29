@@ -22,7 +22,7 @@ interface Toast {
 }
 
 function App() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
@@ -40,7 +40,7 @@ function App() {
 
   // Listen for new visitor messages when admin is logged in but panel is closed
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isAdmin) return;
 
     const channel = supabase
       .channel('admin_toast_notifications')
@@ -71,7 +71,7 @@ function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, adminOpen]);
+  }, [user, isAdmin, adminOpen]);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
