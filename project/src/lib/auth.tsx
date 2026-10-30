@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { logActivity } from '@/lib/activity';
 
 interface AuthContextValue {
   session: Session | null;
@@ -25,9 +26,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       if (!newSession) setIsAdmin(false);
+      if (event === 'SIGNED_IN') {
+        (async () => {
+          await logActivity('login');
+        })();
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -62,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error?.message ?? null };
     },
     signOut: async () => {
+      await logActivity('logout');
       await supabase.auth.signOut();
     },
   };

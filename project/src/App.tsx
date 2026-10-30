@@ -3,6 +3,7 @@ import { MessageCircle, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { playNotificationSound, unlockAudio } from '@/lib/notify';
+import { logActivity } from '@/lib/activity';
 import type { Profile, Message } from '@/lib/types';
 import { Navbar } from '@/components/Navbar';
 import { Hero } from '@/components/Hero';
@@ -32,10 +33,23 @@ function App() {
     loadProfile();
   }, []);
 
-  // When the owner signs in for the first time, make sure a profile row exists.
+  // When the admin signs in for the first time, make sure a profile row exists.
   useEffect(() => {
-    if (user && !profile) seedProfile();
+    if (user && isAdmin && !profile) seedProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isAdmin]);
+
+  // Track page views for signed-in users
+  useEffect(() => {
+    if (!user) return;
+    const trackPage = () => {
+      (async () => {
+        await logActivity('page_view', window.location.hash || '#home');
+      })();
+    };
+    trackPage();
+    window.addEventListener('hashchange', trackPage);
+    return () => window.removeEventListener('hashchange', trackPage);
   }, [user]);
 
   // Listen for new visitor messages when admin is logged in but panel is closed

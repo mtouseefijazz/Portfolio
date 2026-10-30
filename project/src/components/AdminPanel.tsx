@@ -4,6 +4,7 @@ import {
   FolderGit2,
   PenLine,
   UserCircle,
+  Users,
   Plus,
   Pencil,
   Trash2,
@@ -21,8 +22,11 @@ import {
   Send,
   ArrowLeft,
 } from 'lucide-react';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { MembersManager } from '@/components/MembersManager';
+import { EmailHistory } from '@/components/EmailHistory';
 import { uploadImage } from '@/lib/upload';
 import { iconNames, colorOptions, getIcon } from '@/lib/icons';
 import { playNotificationSound, requestNotificationPermission, showBrowserNotification } from '@/lib/notify';
@@ -35,6 +39,7 @@ interface AdminPanelProps {
 
 type Tab =
   | 'overview'
+  | 'members'
   | 'projects'
   | 'blog'
   | 'skills'
@@ -150,6 +155,7 @@ export function AdminPanel({ open, onClose }: AdminPanelProps) {
             <aside className="lg:sticky lg:top-4 self-start">
               <nav className="flex lg:flex-col gap-1.5 overflow-x-auto scrollbar-hide">
                 <TabBtn id="overview" tab={tab} setTab={setTab} icon={ArrowUpRight} label="Overview" />
+                <TabBtn id="members" tab={tab} setTab={setTab} icon={Users} label="Members" />
                 <TabBtn id="projects" tab={tab} setTab={setTab} icon={FolderGit2} label="Projects" count={projects.length} />
                 <TabBtn id="blog" tab={tab} setTab={setTab} icon={PenLine} label="Blog posts" count={posts.length} />
                 <TabBtn id="skills" tab={tab} setTab={setTab} icon={Wrench} label="Skills" count={skills.length} />
@@ -180,6 +186,7 @@ export function AdminPanel({ open, onClose }: AdminPanelProps) {
                       setTab={setTab}
                     />
                   )}
+                  {tab === 'members' && <MembersManager />}
                   {tab === 'projects' && (
                     <ProjectsManager projects={projects} onChange={loadAll} />
                   )}
@@ -874,9 +881,17 @@ function MessagesManager({ onReadChange }: { onReadChange: () => void }) {
 }
 
 /* ─────────────── Account manager ─────────────── */
+async function readFunctionError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    const body = await error.context.json().catch(() => null);
+    if (body && typeof body.error === 'string') return body.error;
+  }
+  return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+}
+
 function AccountManager() {
   const { user, signOut } = useAuth();
-  const [newEmail, setNewEmail] = useState(user?.email ?? '');
+  const [newEmail, setNewEmail] = useState('');
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailMsg, setEmailMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -892,22 +907,28 @@ function AccountManager() {
       return;
     }
     setEmailBusy(true);
-    const { error } = await supabase.auth.updateUser({ email: newEmail.trim() });
-    setEmailBusy(false);
+    const { data, error } = await supabase.functions.invoke('admin-account', {
+      body: { email: newEmail.trim() },
+    });
     if (error) {
-      setEmailMsg({ type: 'err', text: error.message });
-    } else {
-      setEmailMsg({
-        type: 'ok',
-        text: 'Email update requested. You may need to confirm the new email.',
-      });
+      setEmailBusy(false);
+      setEmailMsg({ type: 'err', text: await readFunctionError(error) });
+      return;
     }
+    await supabase.auth.refreshSession();
+    setEmailBusy(false);
+    setNewEmail('');
+    const savedEmail = (data as { email?: string } | null)?.email ?? newEmail.trim();
+    setEmailMsg({
+      type: 'ok',
+      text: `Done. Your login email is now ${savedEmail}. Use it the next time you sign in.`,
+    });
   };
 
   const updatePassword = async () => {
     setPassMsg(null);
-    if (newPassword.length < 6) {
-      setPassMsg({ type: 'err', text: 'Password must be at least 6 characters.' });
+    if (newPassword.length < 8) {
+      setPassMsg({ type: 'err', text: 'Password must be at least 8 characters.' });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -915,15 +936,19 @@ function AccountManager() {
       return;
     }
     setPassBusy(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setPassBusy(false);
+    const { error } = await supabase.functions.invoke('admin-account', {
+      body: { password: newPassword },
+    });
     if (error) {
-      setPassMsg({ type: 'err', text: error.message });
-    } else {
-      setPassMsg({ type: 'ok', text: 'Password updated successfully.' });
-      setNewPassword('');
-      setConfirmPassword('');
+      setPassBusy(false);
+      setPassMsg({ type: 'err', text: await readFunctionError(error) });
+      return;
     }
+    await supabase.auth.refreshSession();
+    setPassBusy(false);
+    setPassMsg({ type: 'ok', text: 'Password updated. Use the new password the next time you sign in.' });
+    setNewPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -945,6 +970,17 @@ function AccountManager() {
             <p className="text-white font-medium font-[Sora]">Admin account</p>
             <p className="text-sm text-slate-400">{user?.email}</p>
             <p className="text-xs text-emerald-300 mt-0.5">Full control · first registered user is admin</p>
+          </div>
+        </div>
+        <div className="mt-5 grid sm:grid-cols-2 gap-3">
+          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+            <p className="text-xs text-slate-500">Current login email</p>
+            <p className="text-sm text-white mt-1 break-all">{user?.email}</p>
+          </div>
+          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+            <p className="text-xs text-slate-500">Current password</p>
+            <p className="text-sm text-white mt-1 tracking-widest">************</p>
+            <p className="text-xs text-slate-500 mt-1">Stored as a secure hash, so it cannot be shown.</p>
           </div>
         </div>
       </div>
@@ -983,6 +1019,8 @@ function AccountManager() {
         </button>
       </div>
 
+      <EmailHistory />
+
       {/* Change password */}
       <div className="glass rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-2">
@@ -995,7 +1033,7 @@ function AccountManager() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             className={inp}
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
           />
         </Field>
         <Field label="Confirm new password">
